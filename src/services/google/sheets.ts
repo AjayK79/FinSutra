@@ -104,6 +104,33 @@ export async function existingIds(spreadsheetId: string): Promise<Set<string>> {
   return new Set<string>((data.values ?? []).map((row: string[]) => row[0]).filter(Boolean))
 }
 
+/** Read existing rows as {id, evidence, row} so we can dedup and backfill. */
+export async function readIdEvidence(
+  spreadsheetId: string,
+): Promise<{ id: string; evidence: string; row: number }[]> {
+  const range = `${GOOGLE.ledgerTab}!A2:M`
+  const r = await GoogleAuth.apiFetch(`${SHEETS}/${spreadsheetId}/values/${encodeURIComponent(range)}`)
+  if (!r.ok) return []
+  const data = await r.json()
+  const rows: string[][] = data.values ?? []
+  return rows
+    .map((cells, i) => ({ id: cells[0] ?? '', evidence: cells[12] ?? '', row: i + 2 }))
+    .filter((x) => x.id)
+}
+
+/** Update a single cell, e.g. a1 = 'M5'. */
+export async function updateCell(spreadsheetId: string, a1: string, value: string) {
+  const range = `${GOOGLE.ledgerTab}!${a1}`
+  await GoogleAuth.apiFetch(
+    `${SHEETS}/${spreadsheetId}/values/${encodeURIComponent(range)}?valueInputOption=USER_ENTERED`,
+    {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ values: [[value]] }),
+    },
+  )
+}
+
 export function spreadsheetUrl(id: string): string {
   return `https://docs.google.com/spreadsheets/d/${id}/edit`
 }

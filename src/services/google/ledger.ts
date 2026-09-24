@@ -5,7 +5,7 @@
 // ---------------------------------------------------------------------------
 
 import { GoogleAuth } from './auth'
-import { ensureLedger, appendRows, existingIds, spreadsheetUrl } from './sheets'
+import { ensureLedger, appendRows, readIdEvidence, updateCell, spreadsheetUrl } from './sheets'
 import { ensureMonthFolder, uploadFile } from './drive'
 import { GOOGLE, getDriveFolderId } from '@/config'
 import type { Transaction, Customer, Vendor } from '@/db/types'
@@ -62,48 +62,73 @@ export const LedgerSync = {
   },
 
   /**
-   * Push all local transactions that aren't already in the sheet.
-   * Returns how many new rows were added. Evidence images are uploaded for
-   * new rows that carry attachments.
+   * Push local transactions to the sheet:
+   *  - new transactions become new rows (with evidence uploaded), and
+   *  - transactions already in the sheet but missing an evidence link get
+   *    their evidence uploaded and back-filled into the Evidence column.
+   * Errors during evidence upload are counted, not swallowed.
    */
   async pushAll(
     transactions: Transaction[],
     ctx: PushContext,
     resolveAttachments?: (t: Transaction) => Promise<{ blob: Blob; filename: string } | null>,
-  ): Promise<{ pushed: number; url: string }> {
+  ): Promise<{ pushed: number; evidenceUploaded: number; evidenceFailed: number; url: string }> {
     ctx.onProgress?.('Opening ledger…')
     const sheetId = await this.ensure()
     ctx.onProgress?.('Checking what already exists…')
-    const already = await existingIds(sheetId)
+    const existing = await readIdEvidence(sheetId)
+    const byId = new Map(existing.map((r) => [r.id, r]))
 
     const cName = (id?: string | null) => ctx.customers.find((c) => c.id === id)?.name ?? ''
     const vName = (id?: string | null) => ctx.vendors.find((v) => v.id === id)?.name ?? ''
 
-    const pending = transactions.filter((t) => !t.deleted_at && !already.has(t.id))
-    const rows: (string | number)[][] = []
-    let i = 0
-    for (const t of pending) {
-      i++
+    const active = transactions.filter((t) => !t.deleted_at)
+    const newRows: (string | number)[][] = []
+    let evidenceUploaded = 0
+    let evidenceFailed = 0
+
+    for (const t of active) {
+      const row = byId.get(t.id)
       const party = cName(t.customer_id) || vName(t.vendor_id)
       const partyType = t.customer_id ? 'Customer' : t.vendor_id ? 'Vendor' : ''
-      let evidenceUrl = ''
-      if (resolveAttachments && (t.attachment_ids?.length ?? 0) > 0) {
+
+      if (!row) {
+        // brand-new entry → upload evidence, then append the row
+        let evidenceUrl = ''
+        if (resolveAttachments) {
+          try {
+            const att = await resolveAttachments(t)
+            if (att) {
+              ctx.onProgress?.('Uploading evidence…')
+              evidenceUrl = await this.uploadEvidence(att.blob, att.filename, t.date)
+              evidenceUploaded++
+            }
+          } catch (e) {
+            evidenceFailed++
+            console.error('Evidence upload failed for', t.id, e)
+          }
+        }
+        newRows.push(toRow(t, party, partyType, evidenceUrl, ctx.enteredBy))
+      } else if (!row.evidence && resolveAttachments) {
+        // already in the sheet but no evidence link → back-fill it
         try {
           const att = await resolveAttachments(t)
           if (att) {
-            ctx.onProgress?.(`Uploading evidence ${i}/${pending.length}…`)
-            evidenceUrl = await this.uploadEvidence(att.blob, att.filename, t.date)
+            ctx.onProgress?.('Uploading missing evidence…')
+            const url = await this.uploadEvidence(att.blob, att.filename, t.date)
+            await updateCell(sheetId, `M${row.row}`, url)
+            evidenceUploaded++
           }
-        } catch {
-          /* non-fatal: keep the row without evidence */
+        } catch (e) {
+          evidenceFailed++
+          console.error('Evidence backfill failed for', t.id, e)
         }
       }
-      rows.push(toRow(t, party, partyType, evidenceUrl, ctx.enteredBy))
     }
 
-    ctx.onProgress?.(`Writing ${rows.length} row${rows.length === 1 ? '' : 's'}…`)
-    await appendRows(sheetId, rows)
-    return { pushed: rows.length, url: spreadsheetUrl(sheetId) }
+    ctx.onProgress?.(`Writing ${newRows.length} row${newRows.length === 1 ? '' : 's'}…`)
+    await appendRows(sheetId, newRows)
+    return { pushed: newRows.length, evidenceUploaded, evidenceFailed, url: spreadsheetUrl(sheetId) }
   },
 
   /** Upload one evidence file into Evidence/YYYY-MM; return a viewable link. */

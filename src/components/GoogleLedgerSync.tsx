@@ -45,9 +45,11 @@ export function GoogleLedgerSync() {
   }
 
   const resolveAttachments = async (t: (typeof transactions)[number]) => {
-    const id = t.attachment_ids?.[0]
-    if (!id) return null
-    const doc = await db.documents.get(id)
+    // Evidence is stored as a document linked to the transaction. Prefer the
+    // linked_transaction_id relation (how the record forms save it); fall back
+    // to the transaction's own attachment_ids.
+    let doc = await db.documents.where('linked_transaction_id').equals(t.id).first()
+    if (!doc?.blob && t.attachment_ids?.[0]) doc = await db.documents.get(t.attachment_ids[0])
     if (!doc?.blob) return null
     return { blob: doc.blob, filename: doc.filename }
   }
@@ -64,7 +66,12 @@ export function GoogleLedgerSync() {
       const now = new Date().toISOString()
       setLastSync(now)
       try { localStorage.setItem(LAST_SYNC_KEY, now) } catch { /* ignore */ }
-      toast('success', res.pushed === 0 ? 'Ledger already up to date.' : `Synced ${res.pushed} entr${res.pushed === 1 ? 'y' : 'ies'} to Google Sheet.`)
+      const parts: string[] = []
+      if (res.pushed > 0) parts.push(`${res.pushed} entr${res.pushed === 1 ? 'y' : 'ies'}`)
+      if (res.evidenceUploaded > 0) parts.push(`${res.evidenceUploaded} evidence file${res.evidenceUploaded === 1 ? '' : 's'}`)
+      if (parts.length === 0) toast('success', 'Ledger already up to date.')
+      else toast('success', `Synced ${parts.join(' + ')} to Google.`)
+      if (res.evidenceFailed > 0) toast('error', `${res.evidenceFailed} evidence upload${res.evidenceFailed === 1 ? '' : 's'} failed — check the console for details.`)
     } catch (e: any) {
       toast('error', e?.message ?? 'Sync failed.')
     } finally {
