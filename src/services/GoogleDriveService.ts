@@ -46,15 +46,19 @@ export interface IGoogleDrive {
 
 // -- Client id storage -------------------------------------------------------
 
+// FlaminQo's OAuth Web Client ID (public by design). Baked in so sign-in works
+// out of the box; can still be overridden per-device via Settings / env.
+const DEFAULT_CLIENT_ID = '1019599257121-6og4brnofhjsvk27sm56ohcg6fdoo5p0.apps.googleusercontent.com'
+
 export function getClientId(): string {
   try {
     return (
-      localStorage.getItem(CLIENT_ID_KEY) ??
-      (import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined) ??
-      ''
+      localStorage.getItem(CLIENT_ID_KEY) ||
+      (import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined) ||
+      DEFAULT_CLIENT_ID
     )
   } catch {
-    return ''
+    return DEFAULT_CLIENT_ID
   }
 }
 export function setClientId(id: string) {
