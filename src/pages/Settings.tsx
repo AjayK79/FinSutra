@@ -6,6 +6,7 @@ import { PageHeader } from '@/components/ui/StatCard'
 import { Card, Badge } from '@/components/ui/primitives'
 import { Field, TextField, SelectField } from '@/components/ui/Field'
 import { Modal } from '@/components/ui/Modal'
+import { GoogleLedgerSync } from '@/components/GoogleLedgerSync'
 import { useApp, toast } from '@/state/store'
 import { SyncManager, type SyncConflict } from '@/services/SyncManager'
 import { getClientId, setClientId, resetDrive } from '@/services/GoogleDriveService'
@@ -36,7 +37,7 @@ export function Settings() {
     <div className="mx-auto max-w-3xl space-y-5">
       <PageHeader title="Settings" subtitle="Business profile, sync, backup and privacy" />
       <BusinessProfile company={company} />
-      <DriveSync meta={meta} pending={pending} />
+      <GoogleLedgerSync />
       <DataPrivacy company={company} />
       <DemoControls />
       <About />

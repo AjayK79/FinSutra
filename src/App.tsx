@@ -13,7 +13,9 @@ import { InstallPrompt } from '@/components/InstallPrompt'
 import { ToastHost } from '@/components/ToastHost'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { generateAlerts } from '@/lib/alerts'
+import { useGoogleAuth } from '@/state/useGoogleAuth'
 
+import { Login } from '@/pages/Login'
 import { Onboarding } from '@/pages/Onboarding'
 import { Dashboard } from '@/pages/Dashboard'
 import { Transactions } from '@/pages/Transactions'
@@ -82,6 +84,7 @@ function Protected() {
 
 export default function App() {
   const setOnline = useApp((s) => s.setOnline)
+  const { configured, signedIn } = useGoogleAuth()
 
   useEffect(() => {
     const on = () => setOnline(true)
@@ -93,6 +96,18 @@ export default function App() {
       window.removeEventListener('offline', off)
     }
   }, [setOnline])
+
+  // Login gate: once a Google Client ID is configured, require an allowlisted
+  // sign-in before the app is usable. Until then (no Client ID) the app runs
+  // as before, so nothing breaks pre-setup.
+  if (configured && !signedIn) {
+    return (
+      <>
+        <Login />
+        <ToastHost />
+      </>
+    )
+  }
 
   return (
     <>
