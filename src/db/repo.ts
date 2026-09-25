@@ -1,5 +1,6 @@
 import { db } from './database'
 import { uid, deviceId } from '@/lib/id'
+import { emitLocalChange } from '@/lib/changeBus'
 import { computeInvoiceTotals, invoiceOutstanding, deriveInvoiceStatus } from '@/lib/calc'
 import { todayISO } from '@/lib/format'
 import type {
@@ -38,6 +39,7 @@ export async function logEvent(
     sync_status: 'pending',
   }
   await db.sync_events.add(ev)
+  emitLocalChange()
 }
 
 // --- Company --------------------------------------------------------------

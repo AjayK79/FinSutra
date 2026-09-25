@@ -64,6 +64,42 @@ export async function ensureMonthFolder(
   return ensureFolder(monthKey, evidenceId)
 }
 
+/** Read a JSON file (by name) from a folder, or null if absent. */
+export async function getJsonFile<T = unknown>(name: string, parentId: string): Promise<T | null> {
+  const f = await findChild(name, parentId)
+  if (!f) return null
+  const r = await GoogleAuth.apiFetch(`${DRIVE}/files/${f.id}?alt=media`)
+  if (!r.ok) return null
+  try {
+    return (await r.json()) as T
+  } catch {
+    return null
+  }
+}
+
+/** Create or overwrite a JSON file (by name) in a folder. */
+export async function putJsonFile(name: string, data: unknown, parentId: string): Promise<DriveFile> {
+  const existing = await findChild(name, parentId)
+  const boundary = 'finsutra_' + Math.random().toString(36).slice(2)
+  const metadata = existing ? {} : { name, parents: [parentId] }
+  const body =
+    `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n` +
+    JSON.stringify(metadata) +
+    `\r\n--${boundary}\r\nContent-Type: application/json\r\n\r\n` +
+    JSON.stringify(data) +
+    `\r\n--${boundary}--`
+  const url = existing
+    ? `${UPLOAD}/files/${existing.id}?uploadType=multipart&fields=id,name`
+    : `${UPLOAD}/files?uploadType=multipart&fields=id,name`
+  const r = await GoogleAuth.apiFetch(url, {
+    method: existing ? 'PATCH' : 'POST',
+    headers: { 'Content-Type': `multipart/related; boundary=${boundary}` },
+    body,
+  })
+  if (!r.ok) throw new Error(`Could not save data to Drive (${r.status})`)
+  return r.json()
+}
+
 /** Upload an image/file into a folder; returns the file with a viewable link. */
 export async function uploadFile(file: Blob, filename: string, parentId: string): Promise<DriveFile> {
   const metadata = { name: filename, parents: [parentId] }

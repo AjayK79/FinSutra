@@ -4,6 +4,7 @@ import { db } from '@/db/database'
 import { uid, deviceId } from '@/lib/id'
 import { setActiveCompanyId } from '@/db/repo'
 import { ensureDefaultCategories, seedDemoData } from '@/db/seed'
+import { emitLocalChange } from '@/lib/changeBus'
 import { Field, TextField, SelectField } from '@/components/ui/Field'
 import { toast } from '@/state/store'
 import { ArrowRight, ArrowLeft, Check, HardDrive, Cloud, Sparkles, Wallet, Users, FileText } from 'lucide-react'
@@ -54,6 +55,7 @@ export function Onboarding() {
     await ensureDefaultCategories(companyId)
     setActiveCompanyId(companyId)
     localStorage.removeItem('finsutra_demo')
+    emitLocalChange() // push the new business up to Drive
     toast('success', `${name} is ready!`)
     navigate('/dashboard')
   }

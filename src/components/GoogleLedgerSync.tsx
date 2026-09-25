@@ -1,11 +1,10 @@
 import { useState } from 'react'
 import { Card, Badge } from '@/components/ui/primitives'
 import { useGoogleAuth } from '@/state/useGoogleAuth'
-import { useTransactions, useCustomers, useVendors } from '@/state/hooks'
 import { getClientId, setClientId } from '@/services/GoogleDriveService'
 import { getDriveFolderId } from '@/config'
 import { LedgerSync } from '@/services/google/ledger'
-import { db } from '@/db/database'
+import { SyncEngine } from '@/services/google/syncEngine'
 import { toast } from '@/state/store'
 import { relativeTime } from '@/lib/format'
 import { Cloud, Check, KeyRound, LogOut, RefreshCw, ExternalLink, FolderOpen, Sparkles } from 'lucide-react'
@@ -14,9 +13,6 @@ const LAST_SYNC_KEY = 'finsutra_ledger_last_sync'
 
 export function GoogleLedgerSync() {
   const { email, signedIn, configured, signIn, signOut } = useGoogleAuth()
-  const transactions = useTransactions()
-  const customers = useCustomers()
-  const vendors = useVendors()
 
   const [clientId, setClientIdState] = useState(getClientId())
   const [busy, setBusy] = useState<string | null>(null)
@@ -44,36 +40,18 @@ export function GoogleLedgerSync() {
     }
   }
 
-  const resolveAttachments = async (t: (typeof transactions)[number]) => {
-    // Evidence is stored as a document linked to the transaction. Prefer the
-    // linked_transaction_id relation (how the record forms save it); fall back
-    // to the transaction's own attachment_ids.
-    let doc = await db.documents.where('linked_transaction_id').equals(t.id).first()
-    if (!doc?.blob && t.attachment_ids?.[0]) doc = await db.documents.get(t.attachment_ids[0])
-    if (!doc?.blob) return null
-    return { blob: doc.blob, filename: doc.filename }
-  }
-
   const sync = async () => {
     setBusy('sync')
     try {
-      const res = await LedgerSync.pushAll(
-        transactions,
-        { customers, vendors, enteredBy: email || 'FlaminQo', onProgress: (m) => setBusy(m) },
-        resolveAttachments,
-      )
-      setSheetUrl(res.url)
-      const now = new Date().toISOString()
-      setLastSync(now)
-      try { localStorage.setItem(LAST_SYNC_KEY, now) } catch { /* ignore */ }
-      const parts: string[] = []
-      if (res.pushed > 0) parts.push(`${res.pushed} entr${res.pushed === 1 ? 'y' : 'ies'}`)
-      if (res.evidenceUploaded > 0) parts.push(`${res.evidenceUploaded} evidence file${res.evidenceUploaded === 1 ? '' : 's'}`)
-      if (parts.length === 0) toast('success', 'Ledger already up to date.')
-      else toast('success', `Synced ${parts.join(' + ')} to Google.`)
-      if (res.evidenceFailed > 0) toast('error', `${res.evidenceFailed} evidence upload${res.evidenceFailed === 1 ? '' : 's'} failed — check the console for details.`)
-    } catch (e: any) {
-      toast('error', e?.message ?? 'Sync failed.')
+      await SyncEngine.syncNow()
+      const s = SyncEngine.getStatus()
+      if (s.state === 'error') {
+        toast('error', s.error || 'Sync failed.')
+      } else {
+        setLastSync(s.lastSync)
+        toast('success', 'Synced with Google Drive.')
+        try { const id = await LedgerSync.ensure(); setSheetUrl(LedgerSync.spreadsheetUrl(id)) } catch { /* ignore */ }
+      }
     } finally {
       setBusy(null)
     }

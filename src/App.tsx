@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '@/db/database'
@@ -14,6 +14,7 @@ import { ToastHost } from '@/components/ToastHost'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { generateAlerts } from '@/lib/alerts'
 import { useGoogleAuth } from '@/state/useGoogleAuth'
+import { SyncEngine } from '@/services/google/syncEngine'
 
 import { Login } from '@/pages/Login'
 import { Onboarding } from '@/pages/Onboarding'
@@ -32,6 +33,20 @@ import { Reports } from '@/pages/Reports'
 import { AICFO } from '@/pages/AICFO'
 import { Documents } from '@/pages/Documents'
 import { Settings } from '@/pages/Settings'
+
+function LoadingBooks() {
+  return (
+    <div className="app-bg flex min-h-[100dvh] flex-col items-center justify-center gap-4">
+      <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-500 via-violet-500 to-fuchsia-500 text-white shadow-glow">
+        <svg width="26" height="26" viewBox="0 0 64 64" fill="none"><path d="M22 29h20a1 1 0 0 1 0 6H31l11 13h-8L23 35h-1v13h-6V20h6v9z" fill="currentColor" /><path d="M22 20h20a1 1 0 0 1 0 6H22v-6z" fill="currentColor" opacity="0.9" /></svg>
+      </div>
+      <div className="flex items-center gap-2 text-sm text-ink-500">
+        <span className="h-4 w-4 animate-spin rounded-full border-2 border-ink-200 border-t-brand-600" />
+        Loading your books…
+      </div>
+    </div>
+  )
+}
 
 function AppShell() {
   const location = useLocation()
@@ -85,6 +100,8 @@ function Protected() {
 export default function App() {
   const setOnline = useApp((s) => s.setOnline)
   const { configured, signedIn } = useGoogleAuth()
+  const needRestore = configured && signedIn
+  const [restored, setRestored] = useState(false)
 
   useEffect(() => {
     const on = () => setOnline(true)
@@ -97,6 +114,27 @@ export default function App() {
     }
   }, [setOnline])
 
+  // Start the background sync engine once.
+  useEffect(() => {
+    SyncEngine.start()
+  }, [])
+
+  // After sign-in, pull the business + entries from Drive so the app remembers.
+  useEffect(() => {
+    if (!needRestore) {
+      setRestored(true)
+      return
+    }
+    setRestored(false)
+    let cancelled = false
+    SyncEngine.restoreOnLogin().finally(() => {
+      if (!cancelled) setRestored(true)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [needRestore])
+
   // Login gate: once a Google Client ID is configured, require an allowlisted
   // sign-in before the app is usable. Until then (no Client ID) the app runs
   // as before, so nothing breaks pre-setup.
@@ -107,6 +145,12 @@ export default function App() {
         <ToastHost />
       </>
     )
+  }
+
+  // While we pull the latest from Drive, show a brief loader (offline falls
+  // through quickly to whatever is stored locally).
+  if (needRestore && !restored) {
+    return <LoadingBooks />
   }
 
   return (
