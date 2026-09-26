@@ -377,6 +377,65 @@ export function eventTotals(eventId: string, transactions: Transaction[]): Event
   return { received: round2(received), spent: round2(spent), profit: round2(received - spent), count }
 }
 
+// --- GST -------------------------------------------------------------------
+
+export const GST_RATES = [5, 12, 18, 28] as const
+
+/** Split a GST-inclusive amount into taxable value + GST. */
+export function gstBreakdown(amountInclusive: number, rate: number): { taxable: number; gst: number } {
+  if (!rate || rate <= 0) return { taxable: round2(amountInclusive), gst: 0 }
+  const gst = round2((amountInclusive * rate) / (100 + rate))
+  return { taxable: round2(amountInclusive - gst), gst }
+}
+
+export interface TxnGst {
+  applicable: boolean
+  rate: number
+  taxable: number
+  gst: number
+}
+
+export function txnGst(t: Pick<Transaction, 'amount' | 'gst_applicable' | 'gst_rate'>): TxnGst {
+  const rate = t.gst_applicable ? (t.gst_rate ?? 0) : 0
+  const { taxable, gst } = gstBreakdown(t.amount, rate)
+  return { applicable: !!t.gst_applicable && rate > 0, rate, taxable, gst }
+}
+
+export interface GstSummary {
+  outputTaxable: number // sales / money received
+  outputGst: number
+  outputCount: number
+  inputTaxable: number // purchases / money paid
+  inputGst: number
+  inputCount: number
+  netGst: number // output - input (payable if positive)
+}
+
+export function gstSummary(transactions: Transaction[], range?: { start: Date; end: Date }): GstSummary {
+  let outputTaxable = 0, outputGst = 0, outputCount = 0
+  let inputTaxable = 0, inputGst = 0, inputCount = 0
+  for (const t of transactions) {
+    if (t.deleted_at || !t.gst_applicable || !t.gst_rate) continue
+    if (t.type === 'transfer') continue
+    if (range) {
+      const d = safeDate(t.date)
+      if (!d || !isWithinInterval(d, range)) continue
+    }
+    const { taxable, gst } = gstBreakdown(t.amount, t.gst_rate)
+    if (t.type === 'income') { outputTaxable += taxable; outputGst += gst; outputCount++ }
+    else if (t.type === 'expense') { inputTaxable += taxable; inputGst += gst; inputCount++ }
+  }
+  return {
+    outputTaxable: round2(outputTaxable),
+    outputGst: round2(outputGst),
+    outputCount,
+    inputTaxable: round2(inputTaxable),
+    inputGst: round2(inputGst),
+    inputCount,
+    netGst: round2(outputGst - inputGst),
+  }
+}
+
 export function round2(n: number): number {
   return Math.round((n + Number.EPSILON) * 100) / 100
 }

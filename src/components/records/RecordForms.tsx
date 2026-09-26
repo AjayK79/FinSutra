@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Field, MoneyField, SelectField, Combo, TextField, TextArea, SegmentedControl } from '@/components/ui/Field'
 import { AttachmentPicker } from './AttachmentPicker'
+import { GstField, type GstValue } from './GstField'
 import { useCustomers, useVendors, useCategories, useInvoices, useEvents } from '@/state/hooks'
 import {
   createTransaction,
@@ -51,6 +52,7 @@ export function IncomeForm({ companyId, onDone }: { companyId: string; onDone: (
   const [amount, setAmount] = useState<number | ''>('')
   const [customerId, setCustomerId] = useState('')
   const [eventId, setEventId] = useState('')
+  const [gst, setGst] = useState<GstValue>({ applicable: false, rate: 18 })
   const [date, setDate] = useState(todayISO())
   const [category, setCategory] = useState('Services')
   const [method, setMethod] = useState<PaymentMethod>('Bank')
@@ -74,6 +76,8 @@ export function IncomeForm({ companyId, onDone }: { companyId: string; onDone: (
         category,
         customer_id: customerId,
         event_id: eventId || null,
+        gst_applicable: gst.applicable,
+        gst_rate: gst.applicable ? gst.rate : 0,
         payment_method: method,
         status: 'completed',
         reference_number: ref,
@@ -93,6 +97,7 @@ export function IncomeForm({ companyId, onDone }: { companyId: string; onDone: (
       <Field label="Amount received" required>
         <MoneyField value={amount} onChange={setAmount} autoFocus />
       </Field>
+      <GstField value={gst} onChange={setGst} amount={amount} />
       <Field label="Received from" required>
         <Combo
           value={customerId}
@@ -129,6 +134,7 @@ export function ExpenseForm({ companyId, onDone, asBill = false }: { companyId: 
   const [amount, setAmount] = useState<number | ''>('')
   const [vendorId, setVendorId] = useState('')
   const [eventId, setEventId] = useState('')
+  const [gst, setGst] = useState<GstValue>({ applicable: false, rate: 18 })
   const [date, setDate] = useState(todayISO())
   const [category, setCategory] = useState('Office')
   const [method, setMethod] = useState<PaymentMethod>('Bank')
@@ -154,6 +160,8 @@ export function ExpenseForm({ companyId, onDone, asBill = false }: { companyId: 
         category,
         vendor_id: vendorId,
         event_id: eventId || null,
+        gst_applicable: gst.applicable,
+        gst_rate: gst.applicable ? gst.rate : 0,
         payment_method: method,
         status: pending ? 'pending' : 'completed',
         reference_number: ref,
@@ -173,6 +181,7 @@ export function ExpenseForm({ companyId, onDone, asBill = false }: { companyId: 
       <Field label="Amount" required>
         <MoneyField value={amount} onChange={setAmount} autoFocus />
       </Field>
+      <GstField value={gst} onChange={setGst} amount={amount} />
       <Field label="Paid to" required>
         <Combo
           value={vendorId}

@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
-import { useCompany, useTransactions, useInvoices, useCustomers, useVendors } from '@/state/hooks'
+import { useCompany, useTransactions, useInvoices, useCustomers, useVendors, useEvents } from '@/state/hooks'
 import {
-  cashFlowByMonth, categoryTotals, receivablesSummary, payablesFromTransactions, agingBucket, openInvoices, invoiceOutstanding,
+  cashFlowByMonth, categoryTotals, receivablesSummary, payablesFromTransactions, agingBucket, openInvoices, invoiceOutstanding, gstSummary,
 } from '@/lib/calc'
 import { formatMoney, formatMoneyCompact, safeDate } from '@/lib/format'
 import { PageHeader, StatCard } from '@/components/ui/StatCard'
@@ -11,7 +11,7 @@ import { ExportService } from '@/services/ExportService'
 import { BackupService } from '@/services/BackupService'
 import { toast } from '@/state/store'
 import { startOfMonth, endOfMonth, subMonths, startOfQuarter, endOfQuarter, startOfYear, endOfYear, isWithinInterval } from 'date-fns'
-import { TrendingUp, TrendingDown, Scale, Download, FileText, FileJson } from 'lucide-react'
+import { TrendingUp, TrendingDown, Scale, Download, FileText, FileJson, Receipt, FileSpreadsheet } from 'lucide-react'
 
 type RangeKey = 'this_month' | 'last_month' | 'this_quarter' | 'this_year'
 
@@ -30,9 +30,11 @@ export function Reports() {
   const invoices = useInvoices()
   const customers = useCustomers()
   const vendors = useVendors()
+  const events = useEvents()
   const cur = company?.currency ?? 'INR'
   const [rangeKey, setRangeKey] = useState<RangeKey>('this_month')
   const range = useMemo(() => getRange(rangeKey), [rangeKey])
+  const gst = useMemo(() => gstSummary(transactions, range), [transactions, range])
 
   const inRange = (date: string) => { const d = safeDate(date); return d && isWithinInterval(d, range) }
 
@@ -92,6 +94,28 @@ export function Reports() {
     toast('success', 'Data exported as JSON.')
   }
 
+  const inRangeTxns = useMemo(() => transactions.filter((t) => !t.deleted_at && inRange(t.date)), [transactions, range])
+
+  const downloadPnL = () => {
+    if (!company) return
+    ExportService.exportPnLPDF({
+      company, periodLabel: range.label,
+      revenue: incomeCats.map((c) => ({ name: c.label, value: c.value })),
+      expenses: expenseCats.map((c) => ({ name: c.label, value: c.value })),
+      revenueTotal: revenue, expenseTotal: expenses,
+    })
+    toast('success', 'P&L statement downloaded.')
+  }
+  const exportLedger = (gstOnly: boolean) => {
+    ExportService.exportLedgerCSV(inRangeTxns, { customers, vendors, events }, { gstOnly, label: gstOnly ? 'finsutra-gst-entries' : 'finsutra-ledger' })
+    toast('success', gstOnly ? 'GST entries exported.' : 'Ledger exported.')
+  }
+  const downloadGstPdf = () => {
+    if (!company) return
+    ExportService.exportGstPDF({ company, periodLabel: range.label, summary: gst })
+    toast('success', 'GST summary downloaded.')
+  }
+
   return (
     <div className="space-y-5">
       <PageHeader
@@ -117,6 +141,48 @@ export function Reports() {
         <StatCard label={`Expenses · ${range.label}`} value={formatMoney(expenses, cur)} icon={<TrendingDown className="h-4 w-4" />} tone="red" />
         <StatCard label={`Net Movement · ${range.label}`} value={formatMoney(net, cur, { sign: true })} icon={<Scale className="h-4 w-4" />} tone={net >= 0 ? 'green' : 'red'} />
       </div>
+
+      {/* Accountant Pack */}
+      <Card className="p-5">
+        <div className="mb-4 flex items-center gap-2.5">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-50 text-brand-600"><FileSpreadsheet className="h-5 w-5" /></div>
+          <div>
+            <h2 className="text-base font-semibold text-ink-900">Accountant Pack</h2>
+            <p className="text-sm text-ink-500">{range.label} · P&amp;L and GST filing, ready to share</p>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          <button onClick={downloadPnL} className="btn-primary"><FileText className="h-4 w-4" /> P&amp;L statement (PDF)</button>
+          <button onClick={() => exportLedger(false)} className="btn-secondary"><Download className="h-4 w-4" /> Full ledger (CSV)</button>
+        </div>
+
+        <div className="mt-4 rounded-2xl border border-ink-100 bg-ink-50/50 p-4">
+          <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-ink-800"><Receipt className="h-4 w-4" /> GST · {range.label}</div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div className="rounded-xl bg-white p-3">
+              <p className="text-xs text-ink-400">Output GST (sales)</p>
+              <p className="mt-1 text-lg font-bold text-ink-900 tnum">{formatMoney(gst.outputGst, cur)}</p>
+              <p className="text-[11px] text-ink-400">on {formatMoney(gst.outputTaxable, cur)} · {gst.outputCount} entr{gst.outputCount === 1 ? 'y' : 'ies'}</p>
+            </div>
+            <div className="rounded-xl bg-white p-3">
+              <p className="text-xs text-ink-400">Input GST (purchases)</p>
+              <p className="mt-1 text-lg font-bold text-ink-900 tnum">{formatMoney(gst.inputGst, cur)}</p>
+              <p className="text-[11px] text-ink-400">on {formatMoney(gst.inputTaxable, cur)} · {gst.inputCount} entr{gst.inputCount === 1 ? 'y' : 'ies'}</p>
+            </div>
+            <div className="rounded-xl bg-white p-3">
+              <p className="text-xs text-ink-400">Net GST payable</p>
+              <p className={`mt-1 text-lg font-bold tnum ${gst.netGst >= 0 ? 'text-rose-600' : 'text-emerald-600'}`}>{formatMoney(gst.netGst, cur)}</p>
+              <p className="text-[11px] text-ink-400">output − input</p>
+            </div>
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button onClick={downloadGstPdf} className="btn-secondary"><FileText className="h-4 w-4" /> GST summary (PDF)</button>
+            <button onClick={() => exportLedger(true)} className="btn-secondary"><Download className="h-4 w-4" /> GST entries only (CSV)</button>
+          </div>
+          <p className="mt-2 text-xs text-ink-400">Share the GST-only CSV + your Drive evidence folder with your accountant for filing.</p>
+        </div>
+      </Card>
 
       <Card className="p-5">
         <h2 className="mb-4 text-base font-semibold text-ink-900">Cash Flow · last 6 months</h2>

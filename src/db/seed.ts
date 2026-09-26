@@ -40,6 +40,7 @@ function mkTxn(p: {
   customer_id?: string
   vendor_id?: string
   event_id?: string
+  gst_rate?: number
   payment_method?: PaymentMethod
   status?: 'completed' | 'pending'
 }): Transaction {
@@ -55,6 +56,8 @@ function mkTxn(p: {
     customer_id: p.customer_id ?? null,
     vendor_id: p.vendor_id ?? null,
     event_id: p.event_id ?? null,
+    gst_applicable: !!p.gst_rate,
+    gst_rate: p.gst_rate ?? 0,
     payment_method: p.payment_method ?? 'Bank',
     status: p.status ?? 'completed',
     reference_number: '',
@@ -175,12 +178,12 @@ export async function seedDemoData() {
   }
   // A few one-off expenses
   transactions.push(
-    mkTxn({ type: 'expense', amount: 42000, date: subDays(today, 8), description: 'Brochures & print collateral', category: 'Marketing', vendor_id: V['ABC Printers'], payment_method: 'UPI', event_id: E['ABC Product Launch'] }),
+    mkTxn({ type: 'expense', amount: 42000, date: subDays(today, 8), description: 'Brochures & print collateral', category: 'Marketing', vendor_id: V['ABC Printers'], payment_method: 'UPI', event_id: E['ABC Product Launch'], gst_rate: 18 }),
     mkTxn({ type: 'expense', amount: 35000, date: subDays(today, 15), description: 'Client visit travel', category: 'Travel', payment_method: 'Card', event_id: E['XYZ Annual Offsite'] }),
     mkTxn({ type: 'expense', amount: 18500, date: subDays(today, 3), description: 'Event brochures', category: 'Marketing', vendor_id: V['ABC Printers'], payment_method: 'UPI', event_id: E['ABC Product Launch'] }),
-    // Event income
-    mkTxn({ type: 'income', amount: 250000, date: subDays(today, 10), description: 'ABC Product Launch — advance', category: 'Services', customer_id: C['ABC Technologies'], payment_method: 'Bank', event_id: E['ABC Product Launch'] }),
-    mkTxn({ type: 'income', amount: 300000, date: subDays(today, 40), description: 'XYZ Offsite — final payment', category: 'Services', customer_id: C['XYZ Corp'], payment_method: 'Bank', event_id: E['XYZ Annual Offsite'] }),
+    // Event income (with 18% GST — our service rate)
+    mkTxn({ type: 'income', amount: 250000, date: subDays(today, 10), description: 'ABC Product Launch — advance', category: 'Services', customer_id: C['ABC Technologies'], payment_method: 'Bank', event_id: E['ABC Product Launch'], gst_rate: 18 }),
+    mkTxn({ type: 'income', amount: 300000, date: subDays(today, 40), description: 'XYZ Offsite — final payment', category: 'Services', customer_id: C['XYZ Corp'], payment_method: 'Bank', event_id: E['XYZ Annual Offsite'], gst_rate: 18 }),
     // Payables (pending expenses)
     mkTxn({ type: 'expense', amount: 96000, date: subDays(today, -5), description: 'Q3 cloud reserved instances (due)', category: 'Software', vendor_id: V['AWS'], status: 'pending', payment_method: 'Bank' }),
     mkTxn({ type: 'expense', amount: 54000, date: subDays(today, 2), description: 'Design contractor invoice (due)', category: 'Contractors', status: 'pending', payment_method: 'Bank' }),

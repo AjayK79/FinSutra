@@ -8,6 +8,7 @@ import { GoogleAuth } from './auth'
 import { ensureLedger, appendRows, readIdEvidence, updateCell, spreadsheetUrl, EVIDENCE_COL_LETTER } from './sheets'
 import { ensureMonthFolder, uploadFile } from './drive'
 import { GOOGLE, getDriveFolderId, LEDGER_COLUMNS } from '@/config'
+import { txnGst } from '@/lib/calc'
 import type { Transaction, Customer, Vendor, EventRecord } from '@/db/types'
 
 function monthKey(dateISO: string): string {
@@ -24,6 +25,7 @@ function toRow(
   t: Transaction,
   fields: { event: string; party: string; partyType: string; evidenceUrl: string; enteredBy: string },
 ): (string | number)[] {
+  const g = txnGst(t)
   // Column-name → value, so the sheet order can change freely in config.
   const map: Record<string, string | number> = {
     'ID': t.id,
@@ -32,6 +34,9 @@ function toRow(
     'Type': TYPE_LABEL[t.type] ?? t.type,
     'Amount': t.amount,
     'Currency': t.currency || 'INR',
+    'GST %': g.applicable ? g.rate : '',
+    'Taxable Value': g.applicable ? g.taxable : '',
+    'GST Amount': g.applicable ? g.gst : '',
     'Event': fields.event,
     'Party': fields.party,
     'Party Type': fields.partyType,

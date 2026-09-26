@@ -109,6 +109,8 @@ export interface Transaction {
   customer_id?: string | null
   vendor_id?: string | null
   event_id?: string | null
+  gst_applicable?: boolean
+  gst_rate?: number // 0 | 5 | 12 | 18 | 28 — amount is treated as GST-inclusive
   payment_method: PaymentMethod
   status: 'completed' | 'pending'
   reference_number?: string

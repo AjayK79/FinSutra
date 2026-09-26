@@ -22,6 +22,8 @@ export async function applyResolved(
     category: r.category,
     customer_id: r.customer_id,
     vendor_id: r.vendor_id,
+    gst_applicable: r.gst_applicable,
+    gst_rate: r.gst_rate,
     payment_method: r.payment_method,
     status: 'completed',
   })

@@ -5,6 +5,8 @@ import { PageHeader } from '@/components/ui/StatCard'
 import { Card, Tabs, EmptyState, Badge } from '@/components/ui/primitives'
 import { Modal } from '@/components/ui/Modal'
 import { Field, TextField, SelectField, MoneyField, TextArea } from '@/components/ui/Field'
+import { GstField, type GstValue } from '@/components/records/GstField'
+import { txnGst } from '@/lib/calc'
 import { useApp, toast } from '@/state/store'
 import { updateTransaction, softDeleteTransaction } from '@/db/repo'
 import { Search, SlidersHorizontal, ArrowDownLeft, ArrowUpRight, HandCoins, Download, Plus, Trash2, Pencil } from 'lucide-react'
@@ -185,10 +187,14 @@ function TxnDetail({ txn, onClose, categories, partyName, cur }: { txn: Transact
   const [description, setDescription] = useState(txn.description)
   const [notes, setNotes] = useState(txn.notes ?? '')
   const [method, setMethod] = useState<PaymentMethod>(txn.payment_method)
+  const [gst, setGst] = useState<GstValue>({ applicable: !!txn.gst_applicable, rate: txn.gst_rate || 18 })
 
   const save = async () => {
     if (amount === '' || amount <= 0) return toast('error', 'Enter a valid amount.')
-    await updateTransaction(txn.id, { amount: amount as number, date, category, description, notes, payment_method: method })
+    await updateTransaction(txn.id, {
+      amount: amount as number, date, category, description, notes, payment_method: method,
+      gst_applicable: gst.applicable, gst_rate: gst.applicable ? gst.rate : 0,
+    })
     toast('success', 'Transaction updated.')
     onClose()
   }
@@ -229,6 +235,7 @@ function TxnDetail({ txn, onClose, categories, partyName, cur }: { txn: Transact
             <Field label="Amount"><MoneyField value={amount} onChange={setAmount} currency={cur} /></Field>
             <Field label="Date"><TextField type="date" value={date} onChange={(e) => setDate(e.target.value)} /></Field>
           </div>
+          {txn.type !== 'transfer' && <GstField value={gst} onChange={setGst} amount={amount} currency={cur} />}
           <Field label="Description"><TextField value={description} onChange={(e) => setDescription(e.target.value)} /></Field>
           <div className="grid grid-cols-2 gap-3">
             <Field label="Category"><SelectField value={category} onChange={setCategory} options={catOpts} /></Field>
@@ -246,6 +253,9 @@ function TxnDetail({ txn, onClose, categories, partyName, cur }: { txn: Transact
           </div>
           <DetailRow label="Party" value={partyName} />
           <DetailRow label="Category" value={txn.category} />
+          {txn.gst_applicable && txn.gst_rate ? (
+            <DetailRow label={`GST @ ${txn.gst_rate}%`} value={`${formatMoney(txnGst(txn).taxable, cur)} + ${formatMoney(txnGst(txn).gst, cur)} GST`} />
+          ) : null}
           <DetailRow label="Payment method" value={txn.payment_method} />
           <DetailRow label="Date" value={formatDate(txn.date)} />
           {txn.reference_number && <DetailRow label="Reference" value={txn.reference_number} />}

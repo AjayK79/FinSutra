@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Field, MoneyField, SelectField, Combo, TextField, SegmentedControl } from '@/components/ui/Field'
+import { GstField, type GstValue } from './GstField'
 import { Badge } from '@/components/ui/primitives'
 import { Sparkles, AlertTriangle, ArrowDownLeft, ArrowUpRight, FileText } from 'lucide-react'
 import { confidenceLabel, type Extraction } from '@/services/AIExtractionService'
@@ -16,6 +17,8 @@ export interface ResolvedRecord {
   category: string
   customer_id: string | null
   vendor_id: string | null
+  gst_applicable: boolean
+  gst_rate: number
   payment_method: PaymentMethod
   due_in_days?: number | null
 }
@@ -46,6 +49,7 @@ export function ExtractionReview({
   const [category, setCategory] = useState(extraction.category)
   const [method, setMethod] = useState<PaymentMethod>('Bank')
   const [partyId, setPartyId] = useState<string>('')
+  const [gst, setGst] = useState<GstValue>({ applicable: false, rate: 18 })
   const [error, setError] = useState('')
 
   const isIncomeSide = type === 'income' || type === 'invoice'
@@ -94,6 +98,8 @@ export function ExtractionReview({
       category,
       customer_id: isIncomeSide ? partyId : null,
       vendor_id: !isIncomeSide ? partyId : null,
+      gst_applicable: gst.applicable,
+      gst_rate: gst.applicable ? gst.rate : 0,
       payment_method: method,
       due_in_days: extraction.due_in_days,
     })
@@ -148,6 +154,8 @@ export function ExtractionReview({
           <TextField type="date" value={date} onChange={(e) => setDate(e.target.value)} />
         </Field>
       </div>
+
+      <GstField value={gst} onChange={setGst} amount={amount} currency={extraction.currency} />
 
       {type !== 'transfer' && (
         <Field label={isIncomeSide ? 'Customer' : 'Vendor'} required>

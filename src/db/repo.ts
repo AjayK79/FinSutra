@@ -78,6 +78,8 @@ export async function createTransaction(
     customer_id: input.customer_id ?? null,
     vendor_id: input.vendor_id ?? null,
     event_id: input.event_id ?? null,
+    gst_applicable: input.gst_applicable ?? false,
+    gst_rate: input.gst_rate ?? 0,
     payment_method: input.payment_method,
     status: input.status ?? 'completed',
     reference_number: input.reference_number,
