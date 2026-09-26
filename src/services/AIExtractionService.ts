@@ -110,8 +110,8 @@ function inferCategory(text: string, type: Extraction['type']): string {
   return 'Other'
 }
 
-const EXPENSE_VERBS = ['paid', 'spent', 'bought', 'purchased', 'expense', 'billed by', 'pay', 'gave']
-const INCOME_VERBS = ['received', 'got', 'collected', 'earned', 'credited', 'income', 'deposited']
+const EXPENSE_VERBS = ['paid', 'spent', 'bought', 'purchased', 'expense', 'billed by', 'pay', 'gave', 'debited', 'sent', 'paying to', 'paid to', 'you sent']
+const INCOME_VERBS = ['received', 'got', 'collected', 'earned', 'credited', 'income', 'deposited', 'received from', 'money received', 'payment received']
 const INVOICE_VERBS = ['create invoice', 'raise invoice', 'invoice for', 'bill', 'make an invoice', 'new invoice']
 const TRANSFER_VERBS = ['transfer', 'transferred', 'moved']
 
@@ -321,31 +321,52 @@ export const AIExtractionService = {
   },
 
   /**
-   * Best-effort read of an uploaded receipt/screenshot. Without a remote OCR
-   * model this returns a low-confidence scaffold seeded from filename hints,
-   * so the user always reviews before saving (never silently persisted).
+   * Read an uploaded receipt / UPI screenshot on-device: OCR the image, then
+   * run the text parser. Falls back to a review scaffold if nothing readable.
+   * Always returns something for the user to review (never silently saved).
    */
   async extractFromImage(file: File): Promise<Extraction> {
+    let text = ''
+    try {
+      const { ocrImage } = await import('./ocr')
+      text = await ocrImage(file)
+    } catch {
+      /* OCR unavailable → fall through to scaffold */
+    }
+
+    if (text && text.replace(/\s/g, '').length >= 4) {
+      const ex = this.extractFromText(text)
+      return {
+        ...ex,
+        currency: 'INR',
+        confidence: ex.amount != null ? Math.min(0.9, Math.max(0.55, ex.confidence)) : 0.3,
+        description: ex.description && !/^\s*$/.test(ex.description) ? ex.description : file.name.replace(/\.[^.]+$/, ''),
+        raw: `image-ocr:${file.name}`,
+        warnings:
+          ex.amount == null
+            ? ['Couldn’t read an amount from the image — please enter it.']
+            : ['Read on-device from your screenshot — check the amount, name and date before saving.'],
+      }
+    }
+
+    // Couldn't read text (blurry / unsupported) → editable scaffold
     const nameHints = file.name.toLowerCase()
     const guessParty =
       /amazon/.test(nameHints) ? 'Amazon' :
       /swiggy|zomato/.test(nameHints) ? 'Food Delivery' :
       /uber|ola/.test(nameHints) ? 'Ride' : null
-    const category = guessParty ? inferCategory(guessParty, 'expense') : 'Other'
     return {
       type: 'expense',
       amount: null,
       currency: 'INR',
       party: guessParty,
       party_type: 'vendor',
-      category,
+      category: guessParty ? inferCategory(guessParty, 'expense') : 'Other',
       date: todayISO(),
       description: file.name.replace(/\.[^.]+$/, ''),
       confidence: 0.3,
       raw: `image:${file.name}`,
-      warnings: [
-        'On-device image reading is limited — please confirm the amount, date and merchant below.',
-      ],
+      warnings: ["Couldn’t read this image clearly — please fill in the details below."],
     }
   },
 

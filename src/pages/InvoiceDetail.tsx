@@ -10,7 +10,8 @@ import { PaymentForm } from '@/components/records/RecordForms'
 import { ExportService } from '@/services/ExportService'
 import { setInvoiceStatus, softDeleteInvoice, createInvoice, pushNotification, nextInvoiceNumber } from '@/db/repo'
 import { useApp, toast } from '@/state/store'
-import { Download, Copy, HandCoins, Send, Bell, Pencil, ChevronLeft, Trash2, CheckCircle2 } from 'lucide-react'
+import { openWhatsApp, reminderMessage } from '@/lib/whatsapp'
+import { Download, Copy, HandCoins, Send, Bell, Pencil, ChevronLeft, Trash2, CheckCircle2, MessageCircle } from 'lucide-react'
 
 export function InvoiceDetail() {
   const { id } = useParams()
@@ -157,7 +158,16 @@ export function InvoiceDetail() {
         <button onClick={() => navigate(`/invoices/${invoice.id}/edit`)} className="btn-secondary"><Pencil className="h-4 w-4" /> Edit</button>
         <button onClick={duplicate} className="btn-secondary"><Copy className="h-4 w-4" /> Duplicate</button>
         {invoice.status === 'draft' && <button onClick={markSent} className="btn-secondary"><Send className="h-4 w-4" /> Mark Sent</button>}
-        {outstanding > 0 && invoice.status !== 'draft' && <button onClick={sendReminder} className="btn-secondary"><Bell className="h-4 w-4" /> Send Reminder</button>}
+        {outstanding > 0 && invoice.status !== 'draft' && (
+          <button
+            onClick={() => openWhatsApp(customer?.phone, reminderMessage({ customerName: customer?.name, businessName: company.name, amount: outstanding, currency: cur, ref: invoice.invoice_number, dueDate: formatDate(invoice.due_date) }))}
+            className="btn-secondary text-emerald-700"
+            title={customer?.phone ? undefined : 'Add a phone number to the customer to send directly'}
+          >
+            <MessageCircle className="h-4 w-4" /> WhatsApp
+          </button>
+        )}
+        {outstanding > 0 && invoice.status !== 'draft' && <button onClick={sendReminder} className="btn-secondary"><Bell className="h-4 w-4" /> Log Reminder</button>}
         <button onClick={downloadPdf} className="btn-secondary"><Download className="h-4 w-4" /> Download PDF</button>
         <button onClick={del} className="btn-ghost ml-auto text-rose-600"><Trash2 className="h-4 w-4" /> Delete</button>
       </Card>

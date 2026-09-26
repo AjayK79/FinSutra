@@ -6,6 +6,7 @@ import { useCompany } from '@/state/hooks'
 import { AIRecordForm } from './records/AIRecordForm'
 import { IncomeForm, ExpenseForm, PaymentForm, TransferForm } from './records/RecordForms'
 import { DocumentUploadForm } from './records/DocumentUploadForm'
+import { ScanPaymentForm } from './records/ScanPaymentForm'
 import {
   ArrowDownLeft,
   ArrowUpRight,
@@ -14,12 +15,14 @@ import {
   HandCoins,
   ArrowLeftRight,
   Upload,
+  ScanLine,
   ChevronLeft,
 } from 'lucide-react'
 
 type View = RecordPreset
 
 const MENU: { key: View; label: string; sub: string; icon: typeof FileText; tone: string }[] = [
+  { key: 'scan', label: 'Scan a Payment', sub: 'Snap a UPI / bank screenshot', icon: ScanLine, tone: 'bg-emerald-50 text-emerald-600' },
   { key: 'income', label: 'Money Received', sub: 'Record income from a customer', icon: ArrowDownLeft, tone: 'bg-emerald-50 text-emerald-600' },
   { key: 'expense', label: 'Money Spent', sub: 'Record an expense you paid', icon: ArrowUpRight, tone: 'bg-rose-50 text-rose-600' },
   { key: 'invoice', label: 'Invoice Raised', sub: 'Bill a customer', icon: FileText, tone: 'bg-brand-50 text-brand-600' },
@@ -36,6 +39,7 @@ const TITLES: Record<string, string> = {
   payment: 'Record Payment',
   transfer: 'Transfer',
   document: 'Upload Document',
+  scan: 'Scan a Payment',
   ai: 'Tell FinSutra what happened',
   menu: 'What happened?',
 }
@@ -126,6 +130,7 @@ export function RecordModal() {
       {view === 'payment' && <PaymentForm companyId={company.id} onDone={onDone} />}
       {view === 'transfer' && <TransferForm companyId={company.id} onDone={onDone} />}
       {view === 'document' && <DocumentUploadForm companyId={company.id} onDone={onDone} />}
+      {view === 'scan' && <ScanPaymentForm companyId={company.id} onDone={onDone} />}
     </Modal>
   )
 }

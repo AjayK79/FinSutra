@@ -16,6 +16,7 @@ export type RecordPreset =
   | 'payment'
   | 'transfer'
   | 'document'
+  | 'scan'
   | 'ai'
 
 interface ConfirmState {

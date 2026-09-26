@@ -8,7 +8,8 @@ import { Card, Tabs, EmptyState, Avatar, InvoiceStatusBadge } from '@/components
 import { PartyFormModal } from '@/components/PartyFormModal'
 import { useApp, toast } from '@/state/store'
 import { deleteCustomer } from '@/db/repo'
-import { ChevronLeft, Pencil, Plus, Mail, Phone, MapPin, Trash2, FileText, HandCoins, ArrowLeftRight } from 'lucide-react'
+import { openWhatsApp, reminderMessage } from '@/lib/whatsapp'
+import { ChevronLeft, Pencil, Plus, Mail, Phone, MapPin, Trash2, FileText, HandCoins, ArrowLeftRight, MessageCircle } from 'lucide-react'
 
 type Tab = 'invoices' | 'payments' | 'transactions'
 
@@ -56,7 +57,16 @@ export function CustomerDetail() {
               </div>
             </div>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
+            {totals.outstanding > 0 && (
+              <button
+                onClick={() => openWhatsApp(customer.phone, reminderMessage({ customerName: customer.name, businessName: company.name, amount: totals.outstanding, currency: cur }))}
+                className="btn-secondary text-emerald-700"
+                title={customer.phone ? undefined : 'Add a phone number to send directly'}
+              >
+                <MessageCircle className="h-4 w-4" /> Remind on WhatsApp
+              </button>
+            )}
             <button onClick={() => setEditOpen(true)} className="btn-secondary"><Pencil className="h-4 w-4" /> Edit</button>
             <button onClick={() => navigate('/invoices/new', { state: { prefill: { customerName: customer.name } } })} className="btn-primary"><Plus className="h-4 w-4" /> Invoice</button>
           </div>
