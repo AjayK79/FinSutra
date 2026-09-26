@@ -96,14 +96,15 @@ async function pushInternal() {
   const snapshot = await buildSnapshot()
   await putJsonFile(SNAPSHOT_NAME, snapshot, folder)
 
-  const [customers, vendors, transactions] = await Promise.all([
+  const [customers, vendors, events, transactions] = await Promise.all([
     db.customers.toArray(),
     db.vendors.toArray(),
+    db.events.toArray(),
     db.transactions.toArray(),
   ])
   await LedgerSync.pushAll(
     transactions,
-    { customers, vendors, enteredBy: GoogleAuth.currentEmail() || 'FlaminQo' },
+    { customers, vendors, events, enteredBy: GoogleAuth.currentEmail() || 'FlaminQo' },
     resolveAttachments,
   )
 }

@@ -1,11 +1,12 @@
 import { useState } from 'react'
 import { Field, MoneyField, SelectField, Combo, TextField, TextArea, SegmentedControl } from '@/components/ui/Field'
 import { AttachmentPicker } from './AttachmentPicker'
-import { useCustomers, useVendors, useCategories, useInvoices } from '@/state/hooks'
+import { useCustomers, useVendors, useCategories, useInvoices, useEvents } from '@/state/hooks'
 import {
   createTransaction,
   createCustomer,
   createVendor,
+  createEvent,
   recordPayment,
 } from '@/db/repo'
 import { persistAttachments } from '@/lib/files'
@@ -26,6 +27,22 @@ function SaveBar({ onSave, saving, label }: { onSave: () => void; saving: boolea
   )
 }
 
+function EventField({ companyId, value, onChange }: { companyId: string; value: string; onChange: (id: string) => void }) {
+  const events = useEvents()
+  return (
+    <Field label="Event / Project" hint="Optional — tag to an event to track its profit">
+      <Combo
+        value={value}
+        onChange={onChange}
+        options={events.map((e) => ({ id: e.id, name: e.name }))}
+        onCreate={async (name) => { const e = await createEvent({ company_id: companyId, name }); onChange(e.id) }}
+        placeholder="No event"
+        createLabel="Add event"
+      />
+    </Field>
+  )
+}
+
 // --- Income ---------------------------------------------------------------
 
 export function IncomeForm({ companyId, onDone }: { companyId: string; onDone: () => void }) {
@@ -33,6 +50,7 @@ export function IncomeForm({ companyId, onDone }: { companyId: string; onDone: (
   const categories = useCategories().filter((c) => c.type === 'income')
   const [amount, setAmount] = useState<number | ''>('')
   const [customerId, setCustomerId] = useState('')
+  const [eventId, setEventId] = useState('')
   const [date, setDate] = useState(todayISO())
   const [category, setCategory] = useState('Services')
   const [method, setMethod] = useState<PaymentMethod>('Bank')
@@ -55,6 +73,7 @@ export function IncomeForm({ companyId, onDone }: { companyId: string; onDone: (
         description: notes || `Received from ${customers.find((c) => c.id === customerId)?.name ?? 'customer'}`,
         category,
         customer_id: customerId,
+        event_id: eventId || null,
         payment_method: method,
         status: 'completed',
         reference_number: ref,
@@ -83,6 +102,7 @@ export function IncomeForm({ companyId, onDone }: { companyId: string; onDone: (
           placeholder="Select customer"
         />
       </Field>
+      <EventField companyId={companyId} value={eventId} onChange={setEventId} />
       <div className="grid grid-cols-2 gap-3">
         <Field label="Date"><TextField type="date" value={date} onChange={(e) => setDate(e.target.value)} /></Field>
         <Field label="Category">
@@ -108,6 +128,7 @@ export function ExpenseForm({ companyId, onDone, asBill = false }: { companyId: 
   const categories = useCategories().filter((c) => c.type === 'expense')
   const [amount, setAmount] = useState<number | ''>('')
   const [vendorId, setVendorId] = useState('')
+  const [eventId, setEventId] = useState('')
   const [date, setDate] = useState(todayISO())
   const [category, setCategory] = useState('Office')
   const [method, setMethod] = useState<PaymentMethod>('Bank')
@@ -132,6 +153,7 @@ export function ExpenseForm({ companyId, onDone, asBill = false }: { companyId: 
         description: notes || `Paid to ${vendors.find((v) => v.id === vendorId)?.name ?? 'vendor'}`,
         category,
         vendor_id: vendorId,
+        event_id: eventId || null,
         payment_method: method,
         status: pending ? 'pending' : 'completed',
         reference_number: ref,
@@ -160,6 +182,7 @@ export function ExpenseForm({ companyId, onDone, asBill = false }: { companyId: 
           placeholder="Select vendor"
         />
       </Field>
+      <EventField companyId={companyId} value={eventId} onChange={setEventId} />
       <div className="grid grid-cols-2 gap-3">
         <Field label={pending ? 'Bill date' : 'Date'}><TextField type="date" value={date} onChange={(e) => setDate(e.target.value)} /></Field>
         <Field label="Category">

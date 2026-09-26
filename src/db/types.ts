@@ -50,6 +50,23 @@ export interface User {
   created_at: string
 }
 
+export type EventStatus = 'active' | 'completed'
+
+export interface EventRecord {
+  id: string
+  company_id: string
+  name: string
+  customer_id?: string | null
+  event_date?: string
+  expected_amount?: number // expected revenue, for "vs received"
+  status: EventStatus
+  notes?: string
+  created_at: string
+  updated_at: string
+  deleted_at?: string | null
+  sync_status: SyncStatus
+}
+
 export interface Customer {
   id: string
   company_id: string
@@ -91,6 +108,7 @@ export interface Transaction {
   category: string
   customer_id?: string | null
   vendor_id?: string | null
+  event_id?: string | null
   payment_method: PaymentMethod
   status: 'completed' | 'pending'
   reference_number?: string

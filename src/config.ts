@@ -46,14 +46,16 @@ export function setDriveFolderId(id: string) {
   }
 }
 
-/** Column order for the ledger sheet (row 1 header). */
+/** Column order for the ledger sheet (row 1 header). Change freely — the sheet
+ * auto-rebuilds when this changes, and rows are written by column name. */
 export const LEDGER_COLUMNS = [
   'ID',
-  'Date',
+  'Payment Date',
   'Month',
   'Type',
   'Amount',
   'Currency',
+  'Event',
   'Party',
   'Party Type',
   'Category',
@@ -62,5 +64,5 @@ export const LEDGER_COLUMNS = [
   'Description',
   'Evidence',
   'Entered By',
-  'Created At',
+  'Recorded On',
 ] as const

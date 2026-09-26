@@ -10,6 +10,7 @@ import {
   Sparkles,
   FolderOpen,
   Settings,
+  PartyPopper,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -22,6 +23,7 @@ export interface NavItem {
 export const NAV_ITEMS: NavItem[] = [
   { label: 'Dashboard', to: '/dashboard', icon: LayoutDashboard },
   { label: 'Transactions', to: '/transactions', icon: ArrowLeftRight },
+  { label: 'Events', to: '/events', icon: PartyPopper },
   { label: 'Invoices', to: '/invoices', icon: FileText },
   { label: 'Receivables', to: '/receivables', icon: Wallet },
   { label: 'Payables', to: '/payables', icon: Receipt },

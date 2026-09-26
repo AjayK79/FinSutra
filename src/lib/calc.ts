@@ -355,6 +355,28 @@ export function categoryTotals(
     .sort((a, b) => b.total - a.total)
 }
 
+// --- Events ---------------------------------------------------------------
+
+export interface EventTotals {
+  received: number
+  spent: number
+  profit: number
+  count: number
+}
+
+export function eventTotals(eventId: string, transactions: Transaction[]): EventTotals {
+  let received = 0
+  let spent = 0
+  let count = 0
+  for (const t of transactions) {
+    if (t.event_id !== eventId || t.deleted_at) continue
+    count++
+    if (t.type === 'income') received += t.amount
+    else if (t.type === 'expense') spent += t.amount
+  }
+  return { received: round2(received), spent: round2(spent), profit: round2(received - spent), count }
+}
+
 export function round2(n: number): number {
   return Math.round((n + Number.EPSILON) * 100) / 100
 }

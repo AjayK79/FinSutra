@@ -17,6 +17,7 @@ export interface BackupPackage {
     users: unknown[]
     customers: unknown[]
     vendors: unknown[]
+    events: unknown[]
     transactions: unknown[]
     invoices: unknown[]
     invoice_items: unknown[]
@@ -60,6 +61,7 @@ export const BackupService = {
       users,
       customers,
       vendors,
+      events,
       transactions,
       invoices,
       invoice_items,
@@ -73,6 +75,7 @@ export const BackupService = {
       db.users.toArray(),
       db.customers.toArray(),
       db.vendors.toArray(),
+      db.events.toArray(),
       db.transactions.toArray(),
       db.invoices.toArray(),
       db.invoice_items.toArray(),
@@ -102,6 +105,7 @@ export const BackupService = {
         users,
         customers,
         vendors,
+        events,
         transactions,
         invoices,
         invoice_items,
@@ -154,6 +158,7 @@ export const BackupService = {
       await db.users.bulkPut(d.users as any)
       await db.customers.bulkPut(d.customers as any)
       await db.vendors.bulkPut(d.vendors as any)
+      await db.events.bulkPut((d.events ?? []) as any)
       await db.transactions.bulkPut(d.transactions as any)
       await db.invoices.bulkPut(d.invoices as any)
       await db.invoice_items.bulkPut(d.invoice_items as any)

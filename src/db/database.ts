@@ -4,6 +4,7 @@ import type {
   User,
   Customer,
   Vendor,
+  EventRecord,
   Transaction,
   Invoice,
   InvoiceItem,
@@ -20,6 +21,7 @@ export class FinSutraDB extends Dexie {
   users!: Table<User, string>
   customers!: Table<Customer, string>
   vendors!: Table<Vendor, string>
+  events!: Table<EventRecord, string>
   transactions!: Table<Transaction, string>
   invoices!: Table<Invoice, string>
   invoice_items!: Table<InvoiceItem, string>
@@ -51,6 +53,13 @@ export class FinSutraDB extends Dexie {
       sync_events: 'id, entity_type, entity_id, timestamp, sync_status',
       sync_metadata: 'device_id',
       notifications: 'id, company_id, read, created_at, type',
+    })
+
+    // v2: events table + event_id index on transactions
+    this.version(2).stores({
+      events: 'id, company_id, customer_id, status, deleted_at',
+      transactions:
+        'id, company_id, type, date, category, customer_id, vendor_id, event_id, status, payment_method, deleted_at, sync_status',
     })
   }
 }

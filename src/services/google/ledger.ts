@@ -5,10 +5,10 @@
 // ---------------------------------------------------------------------------
 
 import { GoogleAuth } from './auth'
-import { ensureLedger, appendRows, readIdEvidence, updateCell, spreadsheetUrl } from './sheets'
+import { ensureLedger, appendRows, readIdEvidence, updateCell, spreadsheetUrl, EVIDENCE_COL_LETTER } from './sheets'
 import { ensureMonthFolder, uploadFile } from './drive'
-import { GOOGLE, getDriveFolderId } from '@/config'
-import type { Transaction, Customer, Vendor } from '@/db/types'
+import { GOOGLE, getDriveFolderId, LEDGER_COLUMNS } from '@/config'
+import type { Transaction, Customer, Vendor, EventRecord } from '@/db/types'
 
 function monthKey(dateISO: string): string {
   return (dateISO || '').slice(0, 7) || new Date().toISOString().slice(0, 7)
@@ -22,33 +22,34 @@ const TYPE_LABEL: Record<string, string> = {
 
 function toRow(
   t: Transaction,
-  party: string,
-  partyType: string,
-  evidenceUrl: string,
-  enteredBy: string,
+  fields: { event: string; party: string; partyType: string; evidenceUrl: string; enteredBy: string },
 ): (string | number)[] {
-  return [
-    t.id,
-    t.date,
-    monthKey(t.date),
-    TYPE_LABEL[t.type] ?? t.type,
-    t.amount,
-    t.currency || 'INR',
-    party,
-    partyType,
-    t.category || '',
-    t.payment_method || '',
-    t.reference_number || '',
-    t.description || '',
-    evidenceUrl,
-    enteredBy,
-    t.created_at || '',
-  ]
+  // Column-name → value, so the sheet order can change freely in config.
+  const map: Record<string, string | number> = {
+    'ID': t.id,
+    'Payment Date': t.date,
+    'Month': monthKey(t.date),
+    'Type': TYPE_LABEL[t.type] ?? t.type,
+    'Amount': t.amount,
+    'Currency': t.currency || 'INR',
+    'Event': fields.event,
+    'Party': fields.party,
+    'Party Type': fields.partyType,
+    'Category': t.category || '',
+    'Payment Method': t.payment_method || '',
+    'Reference': t.reference_number || '',
+    'Description': t.description || '',
+    'Evidence': fields.evidenceUrl,
+    'Entered By': fields.enteredBy,
+    'Recorded On': t.created_at || '',
+  }
+  return LEDGER_COLUMNS.map((c) => map[c] ?? '')
 }
 
 export interface PushContext {
   customers: Customer[]
   vendors: Vendor[]
+  events?: EventRecord[]
   enteredBy: string
   onProgress?: (msg: string) => void
 }
@@ -81,6 +82,7 @@ export const LedgerSync = {
 
     const cName = (id?: string | null) => ctx.customers.find((c) => c.id === id)?.name ?? ''
     const vName = (id?: string | null) => ctx.vendors.find((v) => v.id === id)?.name ?? ''
+    const eName = (id?: string | null) => ctx.events?.find((e) => e.id === id)?.name ?? ''
 
     const active = transactions.filter((t) => !t.deleted_at)
     const newRows: (string | number)[][] = []
@@ -91,6 +93,7 @@ export const LedgerSync = {
       const row = byId.get(t.id)
       const party = cName(t.customer_id) || vName(t.vendor_id)
       const partyType = t.customer_id ? 'Customer' : t.vendor_id ? 'Vendor' : ''
+      const event = eName(t.event_id)
 
       if (!row) {
         // brand-new entry → upload evidence, then append the row
@@ -108,7 +111,7 @@ export const LedgerSync = {
             console.error('Evidence upload failed for', t.id, e)
           }
         }
-        newRows.push(toRow(t, party, partyType, evidenceUrl, ctx.enteredBy))
+        newRows.push(toRow(t, { event, party, partyType, evidenceUrl, enteredBy: ctx.enteredBy }))
       } else if (!row.evidence && resolveAttachments) {
         // already in the sheet but no evidence link → back-fill it
         try {
@@ -116,7 +119,7 @@ export const LedgerSync = {
           if (att) {
             ctx.onProgress?.('Uploading missing evidence…')
             const url = await this.uploadEvidence(att.blob, att.filename, t.date)
-            await updateCell(sheetId, `M${row.row}`, url)
+            await updateCell(sheetId, `${EVIDENCE_COL_LETTER}${row.row}`, url)
             evidenceUploaded++
           }
         } catch (e) {
@@ -141,15 +144,13 @@ export const LedgerSync = {
   /** Push a single transaction row (used by the live create flow, later). */
   async pushOne(
     t: Transaction,
-    party: string,
-    partyType: string,
-    enteredBy: string,
+    fields: { event?: string; party: string; partyType: string; enteredBy: string },
     evidence?: { blob: Blob; filename: string },
   ): Promise<void> {
     const sheetId = await this.ensure()
     let url = ''
     if (evidence) url = await this.uploadEvidence(evidence.blob, evidence.filename, t.date)
-    await appendRows(sheetId, [toRow(t, party, partyType, url, enteredBy)])
+    await appendRows(sheetId, [toRow(t, { event: fields.event ?? '', party: fields.party, partyType: fields.partyType, evidenceUrl: url, enteredBy: fields.enteredBy })])
   },
 
   isReady(): boolean {

@@ -15,6 +15,7 @@ import type {
   Company,
   Customer,
   Vendor,
+  EventRecord,
   Transaction,
   Invoice,
   InvoiceItem,
@@ -38,6 +39,7 @@ function mkTxn(p: {
   category: string
   customer_id?: string
   vendor_id?: string
+  event_id?: string
   payment_method?: PaymentMethod
   status?: 'completed' | 'pending'
 }): Transaction {
@@ -52,6 +54,7 @@ function mkTxn(p: {
     category: p.category,
     customer_id: p.customer_id ?? null,
     vendor_id: p.vendor_id ?? null,
+    event_id: p.event_id ?? null,
     payment_method: p.payment_method ?? 'Bank',
     status: p.status ?? 'completed',
     reference_number: '',
@@ -135,6 +138,27 @@ export async function seedDemoData() {
   }))
   const V = Object.fromEntries(vendors.map((v) => [v.name, v.id])) as Record<string, string>
 
+  // --- Events -------------------------------------------------------------
+  const eventDefs = [
+    { name: 'ABC Product Launch', customer: 'ABC Technologies', daysAgo: 20, expected: 500000, status: 'active' as const },
+    { name: 'XYZ Annual Offsite', customer: 'XYZ Corp', daysAgo: 45, expected: 300000, status: 'completed' as const },
+  ]
+  const events: EventRecord[] = eventDefs.map((e) => ({
+    id: uid('evt_e'),
+    company_id: DEMO_COMPANY_ID,
+    name: e.name,
+    customer_id: C[e.customer],
+    event_date: iso(subDays(today, e.daysAgo)),
+    expected_amount: e.expected,
+    status: e.status,
+    notes: '',
+    created_at: nowISO(),
+    updated_at: nowISO(),
+    deleted_at: null,
+    sync_status: 'synced',
+  }))
+  const E = Object.fromEntries(events.map((e) => [e.name, e.id])) as Record<string, string>
+
   // --- Transactions: 6 months of income + expenses ------------------------
   const transactions: Transaction[] = []
 
@@ -151,9 +175,12 @@ export async function seedDemoData() {
   }
   // A few one-off expenses
   transactions.push(
-    mkTxn({ type: 'expense', amount: 42000, date: subDays(today, 8), description: 'Brochures & print collateral', category: 'Marketing', vendor_id: V['ABC Printers'], payment_method: 'UPI' }),
-    mkTxn({ type: 'expense', amount: 35000, date: subDays(today, 15), description: 'Client visit travel', category: 'Travel', payment_method: 'Card' }),
-    mkTxn({ type: 'expense', amount: 18500, date: subDays(today, 3), description: 'Event brochures', category: 'Marketing', vendor_id: V['ABC Printers'], payment_method: 'UPI' }),
+    mkTxn({ type: 'expense', amount: 42000, date: subDays(today, 8), description: 'Brochures & print collateral', category: 'Marketing', vendor_id: V['ABC Printers'], payment_method: 'UPI', event_id: E['ABC Product Launch'] }),
+    mkTxn({ type: 'expense', amount: 35000, date: subDays(today, 15), description: 'Client visit travel', category: 'Travel', payment_method: 'Card', event_id: E['XYZ Annual Offsite'] }),
+    mkTxn({ type: 'expense', amount: 18500, date: subDays(today, 3), description: 'Event brochures', category: 'Marketing', vendor_id: V['ABC Printers'], payment_method: 'UPI', event_id: E['ABC Product Launch'] }),
+    // Event income
+    mkTxn({ type: 'income', amount: 250000, date: subDays(today, 10), description: 'ABC Product Launch — advance', category: 'Services', customer_id: C['ABC Technologies'], payment_method: 'Bank', event_id: E['ABC Product Launch'] }),
+    mkTxn({ type: 'income', amount: 300000, date: subDays(today, 40), description: 'XYZ Offsite — final payment', category: 'Services', customer_id: C['XYZ Corp'], payment_method: 'Bank', event_id: E['XYZ Annual Offsite'] }),
     // Payables (pending expenses)
     mkTxn({ type: 'expense', amount: 96000, date: subDays(today, -5), description: 'Q3 cloud reserved instances (due)', category: 'Software', vendor_id: V['AWS'], status: 'pending', payment_method: 'Bank' }),
     mkTxn({ type: 'expense', amount: 54000, date: subDays(today, 2), description: 'Design contractor invoice (due)', category: 'Contractors', status: 'pending', payment_method: 'Bank' }),
@@ -293,6 +320,7 @@ export async function seedDemoData() {
     })
     await db.customers.bulkPut(customers)
     await db.vendors.bulkPut(vendors)
+    await db.events.bulkPut(events)
     await db.transactions.bulkPut(transactions)
     await db.invoices.bulkPut(invoices)
     await db.invoice_items.bulkPut(invoiceItems)

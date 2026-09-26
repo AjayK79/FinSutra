@@ -7,6 +7,7 @@ import type {
   Transaction,
   Customer,
   Vendor,
+  EventRecord,
   Invoice,
   InvoiceItem,
   Payment,
@@ -76,6 +77,7 @@ export async function createTransaction(
     category: input.category,
     customer_id: input.customer_id ?? null,
     vendor_id: input.vendor_id ?? null,
+    event_id: input.event_id ?? null,
     payment_method: input.payment_method,
     status: input.status ?? 'completed',
     reference_number: input.reference_number,
@@ -144,6 +146,41 @@ export async function updateCustomer(id: string, patch: Partial<Customer>) {
 export async function deleteCustomer(id: string) {
   await db.customers.update(id, { deleted_at: now(), updated_at: now(), sync_status: 'pending' })
   await logEvent('customer', id, 'DELETE', { id })
+}
+
+// --- Events ---------------------------------------------------------------
+
+export async function createEvent(
+  input: Partial<EventRecord> & { company_id: string; name: string },
+): Promise<EventRecord> {
+  const ev: EventRecord = {
+    id: input.id ?? uid('evt_e'),
+    company_id: input.company_id,
+    name: input.name,
+    customer_id: input.customer_id ?? null,
+    event_date: input.event_date,
+    expected_amount: input.expected_amount,
+    status: input.status ?? 'active',
+    notes: input.notes,
+    created_at: now(),
+    updated_at: now(),
+    deleted_at: null,
+    sync_status: 'pending',
+  }
+  await db.events.add(ev)
+  await logEvent('event', ev.id, 'CREATE', ev)
+  return ev
+}
+
+export async function updateEvent(id: string, patch: Partial<EventRecord>) {
+  await db.events.update(id, { ...patch, updated_at: now(), sync_status: 'pending' })
+  const row = await db.events.get(id)
+  if (row) await logEvent('event', id, 'UPDATE', row)
+}
+
+export async function deleteEvent(id: string) {
+  await db.events.update(id, { deleted_at: now(), updated_at: now(), sync_status: 'pending' })
+  await logEvent('event', id, 'DELETE', { id })
 }
 
 // --- Vendors --------------------------------------------------------------

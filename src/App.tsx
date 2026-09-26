@@ -29,6 +29,8 @@ import { Customers } from '@/pages/Customers'
 import { CustomerDetail } from '@/pages/CustomerDetail'
 import { Vendors } from '@/pages/Vendors'
 import { VendorDetail } from '@/pages/VendorDetail'
+import { Events } from '@/pages/Events'
+import { EventDetail } from '@/pages/EventDetail'
 import { Reports } from '@/pages/Reports'
 import { AICFO } from '@/pages/AICFO'
 import { Documents } from '@/pages/Documents'
@@ -170,6 +172,8 @@ export default function App() {
           <Route path="/customers/:id" element={<CustomerDetail />} />
           <Route path="/vendors" element={<Vendors />} />
           <Route path="/vendors/:id" element={<VendorDetail />} />
+          <Route path="/events" element={<Events />} />
+          <Route path="/events/:id" element={<EventDetail />} />
           <Route path="/reports" element={<Reports />} />
           <Route path="/ai-cfo" element={<AICFO />} />
           <Route path="/documents" element={<Documents />} />

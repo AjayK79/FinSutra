@@ -23,6 +23,24 @@ export function useCompany() {
   }, [cid])
 }
 
+export function useEvents() {
+  const cid = useActiveCompanyId()
+  return (
+    useLiveQuery(async () => {
+      if (!cid) return []
+      const rows = await db.events.where('company_id').equals(cid).toArray()
+      return rows.filter((e) => !e.deleted_at).sort((a, b) => (a.event_date || a.created_at) < (b.event_date || b.created_at) ? 1 : -1)
+    }, [cid]) ?? []
+  )
+}
+
+export function useEvent(id?: string) {
+  return useLiveQuery(async () => {
+    if (!id) return undefined
+    return db.events.get(id)
+  }, [id])
+}
+
 export function useCustomers() {
   const cid = useActiveCompanyId()
   return (

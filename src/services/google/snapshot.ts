@@ -9,7 +9,7 @@
 import { db } from '@/db/database'
 
 const TABLES = [
-  'companies', 'users', 'customers', 'vendors', 'transactions',
+  'companies', 'users', 'customers', 'vendors', 'events', 'transactions',
   'invoices', 'invoice_items', 'payments', 'categories', 'documents',
 ] as const
 

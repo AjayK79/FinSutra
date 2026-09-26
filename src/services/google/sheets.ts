@@ -69,17 +69,36 @@ async function ensureHeader(spreadsheetId: string) {
   const range = `${GOOGLE.ledgerTab}!A1:${colLetter(LEDGER_COLUMNS.length)}1`
   const r = await GoogleAuth.apiFetch(`${SHEETS}/${spreadsheetId}/values/${encodeURIComponent(range)}`)
   const data = r.ok ? await r.json() : { values: [] }
-  const hasHeader = data.values?.[0]?.length === LEDGER_COLUMNS.length
-  if (hasHeader) return
+  const current: string[] = data.values?.[0] ?? []
+  const matches =
+    current.length === LEDGER_COLUMNS.length &&
+    LEDGER_COLUMNS.every((c, i) => current[i] === c)
+  if (matches) return
+
+  // Header changed (columns added/renamed) → rewrite header and clear old data
+  // rows so everything re-syncs cleanly under the new schema (snapshot is the
+  // real source of truth, so no data is lost).
   await GoogleAuth.apiFetch(
-    `${SHEETS}/${spreadsheetId}/values/${encodeURIComponent(range)}?valueInputOption=RAW`,
+    `${SHEETS}/${spreadsheetId}/values/${encodeURIComponent(`${GOOGLE.ledgerTab}!A1:1`)}?valueInputOption=RAW`,
     {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ values: [LEDGER_COLUMNS as unknown as string[]] }),
     },
   )
+  if (current.length) await clearData(spreadsheetId)
 }
+
+async function clearData(spreadsheetId: string) {
+  await GoogleAuth.apiFetch(
+    `${SHEETS}/${spreadsheetId}/values/${encodeURIComponent(`${GOOGLE.ledgerTab}!A2:ZZ`)}:clear`,
+    { method: 'POST' },
+  )
+}
+
+const ID_COL = LEDGER_COLUMNS.indexOf('ID')
+const EVIDENCE_COL = LEDGER_COLUMNS.indexOf('Evidence')
+export const EVIDENCE_COL_LETTER = colLetter(EVIDENCE_COL + 1)
 
 export async function appendRows(spreadsheetId: string, rows: (string | number)[][]) {
   if (rows.length === 0) return
@@ -108,13 +127,13 @@ export async function existingIds(spreadsheetId: string): Promise<Set<string>> {
 export async function readIdEvidence(
   spreadsheetId: string,
 ): Promise<{ id: string; evidence: string; row: number }[]> {
-  const range = `${GOOGLE.ledgerTab}!A2:M`
+  const range = `${GOOGLE.ledgerTab}!A2:${colLetter(LEDGER_COLUMNS.length)}`
   const r = await GoogleAuth.apiFetch(`${SHEETS}/${spreadsheetId}/values/${encodeURIComponent(range)}`)
   if (!r.ok) return []
   const data = await r.json()
   const rows: string[][] = data.values ?? []
   return rows
-    .map((cells, i) => ({ id: cells[0] ?? '', evidence: cells[12] ?? '', row: i + 2 }))
+    .map((cells, i) => ({ id: cells[ID_COL] ?? '', evidence: cells[EVIDENCE_COL] ?? '', row: i + 2 }))
     .filter((x) => x.id)
 }
 
